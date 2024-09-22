@@ -134,13 +134,16 @@ If REMOVE is non-nil, remove FUNCS from tracking."
        'help-echo "mouse-1, RET: describe function")
       (insert "\n"))))
 
-(declare-function tracing-minor-mode-map "")
-(defvar-keymap tracing-minor-mode-map
-  :prefix 'tracing-minor-mode-map
-  :doc "Keymap active `tracing-minor-mode'."
-  "j" #'nvp-trace-display-results
+(declare-function tracing-keymap "")
+(defvar-keymap tracing-keymap
+  :prefix 'tracing-keymap
+  "j" #'trace-mode-display-results
   "q" #'untrace-all
   "l" #'tracing-list)
+
+(defvar-keymap tracing-minor-mode-map
+  :doc "Keymap active `tracing-minor-mode'."
+  "<f2> D" #'tracing-keymap)
 
 ;;;###autoload
 (define-minor-mode tracing-minor-mode
