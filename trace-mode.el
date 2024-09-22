@@ -121,6 +121,30 @@ ARG comes from `forward-sexp', which see."
 
 ;;; Commands
 
+;;;###autoload
+(defun trace-mode-buffer (&optional and-go create)
+  "Return trace output buffer.
+Create a new buffer when necessary if CREATE is non-nil.
+If AND-GO, pop to output buffer."
+  (let ((buf (if create
+                 (get-buffer-create trace-buffer)
+               (get-buffer trace-buffer))))
+    (or buf (user-error "No trace-buffer"))
+    (with-current-buffer buf
+      (when (eq major-mode 'fundamental-mode)
+        (trace-mode))
+      (if and-go
+          (pop-to-buffer (current-buffer))
+        (display-buffer (current-buffer))))))
+
+;;;###autoload
+(defun trace-mode-display-results (&optional and-go)
+  "Show the trace results and maybe enable `trace-mode'.
+If AND-GO is non-nil, pop to the result buffer."
+  (interactive "P")
+  (trace-mode-buffer and-go))
+
+;;;###autoload
 (defun trace-mode-clear ()
   "Clear trace results buffer."
   (interactive)
