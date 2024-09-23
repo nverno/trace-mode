@@ -37,6 +37,69 @@
 ;;; Code:
 
 (require 'trace)
+(require 'elisp-mode)                   ; `elisp--eval-last-sexp-print-value'
+
+
+(defun trace-mode--prefix (level &optional function)
+  (format "%s%s%d %s"
+          (mapconcat #'char-to-string (make-string (max 0 (1- level)) ?|) " ")
+          (if (> level 1) " " "")
+          level
+          (if function (concat "<- " (symbol-name function) ": ") "-> ")))
+
+;; Note(09/23/24): use `cl-prin1' to print objects? It hides objects in
+;; `cl-print-ellipsis' that exceed `print-level'/`print-length' -
+;; `cl-print-expand-ellipsis' prints stuff hidden in ellipses
+(defun trace-mode--print (prefix value &optional ctx output)
+  (let ((print-circle t)
+        (print-escape-newlines t)
+        ;; XXX(09/22/24): print settings for tracing
+        (eval-expression-print-length 10)
+        (eval-expression-print-level 2))
+    (if noninteractive
+        (let ((msg (concat prefix (prin1-to-string value)
+                           (when (and ctx (zerop (length ctx)))
+                             (prin1-to-string ctx)))))
+          (princ (if (eq ?\n (aref msg (1- (length msg))))
+                     (substring msg 0 -1) msg)
+                 standard-output))
+      (with-current-buffer trace-buffer
+        (or output (setq output (current-buffer)))
+        (setq-local window-point-insertion-type t)
+        (goto-char (point-max))
+        (let ((deactivate-mark nil))    ; Protect deactivate-mark.
+          (princ prefix output)
+          (elisp--eval-last-sexp-print-value value output)
+          (when ctx
+            (if (stringp ctx)
+                (princ ctx output)
+              (elisp--eval-last-sexp-print-value ctx output)))
+          (terpri output))))))
+
+(defun trace-mode--entry-message (function level args context)
+  "Override for `trace--entry-message'.
+FUNCTION, LEVEL, ARGS, and CONTEXT are passed to `trace--entry-message'."
+  (unless inhibit-trace
+    (trace-mode--print
+     (trace-mode--prefix level) (cons function args) (funcall context))))
+
+(defun trace-mode--exit-message (function level value context)
+  "Override for `trace--exit-message'.
+FUNCTION, LEVEL, VALUE, and CONTEXT are passed to `trace--exit-message'."
+  (unless inhibit-trace
+    (trace-mode--print
+     (trace-mode--prefix level function) value (funcall context))))
+
+(defun trace-mode-toggle-formatting ()
+  (interactive)
+  (if (advice-member-p 'trace-mode--entry-message 'trace--entry-message)
+      (progn (advice-remove 'trace--entry-message 'trace-mode--entry-message)
+             (advice-remove 'trace--exit-message 'trace-mode--exit-message))
+    (advice-add 'trace--entry-message :override #'trace-mode--entry-message)
+    (advice-add 'trace--exit-message :override #'trace-mode--exit-message)))
+
+;;; Override messages
+(trace-mode-toggle-formatting)
 
 
 (defun trace-mode--forward-sexp-1 (arg)
@@ -99,7 +162,7 @@ ARG comes from `forward-sexp', which see."
 
 
 ;;; Font-locking
-;;; TODO(09/22/24): split for `font-lock-maximum-decoration'
+;; XXX(09/22/24): split for `font-lock-maximum-decoration'
 (defvar trace-mode-keywords
   `((,(concat "^" (string-chop-newline trace-separator))
      . font-lock-comment-face)
@@ -114,8 +177,8 @@ ARG comes from `forward-sexp', which see."
      (2 'font-lock-number-face)
      (3 'font-lock-operator-face)
      (4 'font-lock-property-use-face)
-     (5 'font-lock-escape-face)
-     (6 'font-lock-string-face)))
+     (5 'font-lock-escape-face)))
+  ;; (6 'font-lock-string-face)
   "Font-locking for `trace-mode'.")
 
 
@@ -170,6 +233,7 @@ If AND-GO is non-nil, pop to the result buffer."
 
 
 (defvar-keymap trace-mode-map
+  :doc "Keymap in `trace-mode'."
   :parent special-mode-map
   "j" #'next-line
   "k" #'previous-line
@@ -179,15 +243,13 @@ If AND-GO is non-nil, pop to the result buffer."
   "f" #'forward-sexp
   "b" #'backward-sexp
   "n" #'forward-paragraph
-  "p" #'backward-paragraph
-  ;; "TAB" #'hs-toggle-hiding
-  )
+  "p" #'backward-paragraph)
 
 ;;;###autoload
 (define-derived-mode trace-mode special-mode "Trace"
   "Major mode for displaying trace results.
 
-\\{trace-output-mode-map}"
+\\{trace-mode-map}"
   :abbrev-table nil
   :syntax-table emacs-lisp-mode-syntax-table
   (setq buffer-read-only nil)
@@ -200,10 +262,6 @@ If AND-GO is non-nil, pop to the result buffer."
   (setq-local forward-sexp-function #'trace-mode--forward-sexp)
   (setq-local font-lock-defaults (list trace-mode-keywords))
   (setq-local hl-line-range-function #'trace-mode--hl-line-range)
-  ;; TODO(09/22/24): wrap trace insertion to abbreviate sexps according to
-  ;; `print-level' and `print-length'
-  (setq-local print-length (- (window-width nil t) 10)
-              print-level 3)
   (hl-line-mode))
 
 (provide 'trace-mode)
