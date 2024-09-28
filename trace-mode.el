@@ -185,10 +185,9 @@ ARG comes from `forward-sexp', which see."
 ;;; Commands
 
 ;;;###autoload
-(defun trace-mode-buffer (&optional and-go create)
+(defun trace-mode-buffer (&optional create)
   "Return trace output buffer.
-Create a new buffer when necessary if CREATE is non-nil.
-If AND-GO, pop to output buffer."
+CREATE a new buffer when necessary if non-nil."
   (let ((buf (if create
                  (get-buffer-create trace-buffer)
                (get-buffer trace-buffer))))
@@ -196,16 +195,33 @@ If AND-GO, pop to output buffer."
     (with-current-buffer buf
       (when (eq major-mode 'fundamental-mode)
         (trace-mode))
-      (if and-go
-          (pop-to-buffer (current-buffer))
-        (display-buffer (current-buffer))))))
+      (current-buffer))))
+
+(defvar trace-mode-display-action
+  '((display-buffer--maybe-same-window
+     display-buffer-reuse-window
+     display-buffer--maybe-pop-up-frame-or-window
+     display-buffer-use-some-window)
+    (body-function
+     . (lambda (win)
+         (with-selected-window win
+           (set-window-point win (point-max))
+           (recenter (- -1 scroll-margin)))))
+    (dedicated . t)
+    (allow-no-window . t))
+  "Display buffer action for trace buffer.")
 
 ;;;###autoload
 (defun trace-mode-display-results (&optional and-go)
   "Show the trace results and maybe enable `trace-mode'.
-If AND-GO is non-nil, pop to the result buffer."
+If AND-GO, or the trace buffer was already visible when called, pop
+to the result buffer."
   (interactive "P")
-  (trace-mode-buffer and-go))
+  (let ((buf (trace-mode-buffer)))
+    (when (and buf (not (eq buf (current-buffer))))
+      (if (or and-go (get-buffer-window buf 'visible))
+          (pop-to-buffer buf trace-mode-display-action)
+        (display-buffer buf trace-mode-display-action)))))
 
 ;;;###autoload
 (defun trace-mode-clear ()
