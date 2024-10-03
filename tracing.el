@@ -41,7 +41,7 @@
 
 (defcustom tracing-mode-line-prefix " Tr"
   "Tracing minor mode prefix."
-  :type 'stringp)
+  :type 'string)
 
 (defvar tracing--mode-line-string tracing-mode-line-prefix
   "Tracing minor mode mode-line string.")
@@ -140,6 +140,10 @@ If REMOVE is non-nil, remove FUNCS from tracking."
   "j" #'trace-mode-display-results
   "q" #'untrace-all
   "l" #'tracing-list)
+
+(defvar-keymap trace-mode-repeat-display-map
+  :repeat t
+  "j" #'trace-mode-display-results)
 
 (defvar-keymap tracing-minor-mode-map
   :doc "Keymap active `tracing-minor-mode'."
