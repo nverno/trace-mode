@@ -278,6 +278,7 @@ to the result buffer."
   (setq-local forward-sexp-function #'trace-mode--forward-sexp)
   (setq-local font-lock-defaults (list trace-mode-keywords))
   (setq-local hl-line-range-function #'trace-mode--hl-line-range)
+  (setq-local buffer-undo-list t)
   (hl-line-mode))
 
 (provide 'trace-mode)

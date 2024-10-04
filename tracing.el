@@ -113,17 +113,13 @@ If REMOVE is non-nil, remove FUNCS from tracking."
   :parent button-map
   "u" #'tracing-list-untrace)
 
-(defun tracing-list ()
-  "List functions currently traced."
-  (interactive nil tracing-minor-mode)
-  (unless tracing-minor-mode
-    (user-error "No active trace"))
-  (help-setup-xref (list #'tracing-list)
-		   (called-interactively-p 'interactive))
-  (with-help-window (get-buffer-create "*Traced Functions*")
+(defun tracing--list-print (&rest _args)
+  (let ((inhibit-read-only t)
+        (pos (point)))
+    (erase-buffer)
     (insert (propertize (format "%s" "Traced functions") 'face 'outline-1))
     (insert "\n\n")
-    (dolist (fn tracing--current)
+    (dolist (fn (sort tracing--current :key #'symbol-name))
       (insert-text-button
        (symbol-name fn)
        'face 'button
@@ -132,7 +128,19 @@ If REMOVE is non-nil, remove FUNCS from tracking."
        'action (lambda (_) (describe-function fn))
        'follow-link t
        'help-echo "mouse-1, RET: describe function")
-      (insert "\n"))))
+      (insert "\n"))
+    (when pos (goto-char pos))))
+
+(defun tracing-list ()
+  "List functions currently traced."
+  (interactive nil tracing-minor-mode)
+  (unless tracing-minor-mode
+    (user-error "No active trace"))
+  (help-setup-xref (list #'tracing-list)
+		   (called-interactively-p 'interactive))
+  (with-help-window (get-buffer-create "*Traced Functions*")
+    (tracing--list-print)
+    (setq-local revert-buffer-function #'tracing--list-print)))
 
 (declare-function tracing-keymap "")
 (defvar-keymap tracing-keymap
