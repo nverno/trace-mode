@@ -43,6 +43,12 @@
   "Tracing minor mode prefix."
   :type 'string)
 
+(defface tracing-active-face
+  '((t (:inherit success :foreground "forestgreen" :weight bold)))
+  "Face for active trace count."
+  :group 'trace)
+
+
 (defvar tracing--mode-line-string tracing-mode-line-prefix
   "Tracing minor mode mode-line string.")
 
@@ -59,22 +65,21 @@
 
 (defun tracing--mode-line ()
   "Report current trace in the modeline."
-  (let* ((face)
-         (suffix (if inhibit-trace
-                     (progn (setq face 'compilation-error) "off")
-                   (let ((cnt (length tracing--current)))
-                     (when (> cnt 0)
-                       (setq face '(bold compilation-mode-line-exit)))
-                     (number-to-string cnt)))))
+  (let* (face (suffix
+               (if inhibit-trace
+                   (progn (setq face 'error) "off")
+                 (let ((cnt (length tracing--current)))
+                   (when (> cnt 0)
+                     (setq face 'tracing-active-face))
+                   (number-to-string cnt)))))
     (concat
      tracing-mode-line-prefix ":"
      (apply #'propertize suffix
-            ;; Fix(09/16/24): minor mode help-echo/local-map make this
-            ;; impossible to click, at least when using powerline
-            'help-echo (apply #'format "%s\nmouse-1: %s tracing"
-                              (if inhibit-trace
-                                  (list "Tracing is inhibited" "Enable")
-                                (list "Tracing is active" "Inhibit")))
+            'help-echo (apply
+                        #'format "%s\nmouse-1: %s tracing"
+                        (if inhibit-trace
+                            (list "Tracing is inhibited" "Enable")
+                          (list "Tracing is active" "Inhibit")))
             'local-map (make-mode-line-mouse-map
                         'mouse-1 #'tracing-mode-line-toggle-inhibit)
             (and face (list 'face face))))))
@@ -100,7 +105,7 @@ If REMOVE is non-nil, remove FUNCS from tracking."
 
 ;; -------------------------------------------------------------------
 ;;; Tracing List
- 
+
 (defun tracing-list-untrace ()
   "Untrace function in list."
   (interactive)
@@ -131,12 +136,12 @@ If REMOVE is non-nil, remove FUNCS from tracking."
       (insert "\n"))
     (when pos (goto-char pos))))
 
-(defun tracing-list ()
+(defun tracing-list-functions ()
   "List functions currently traced."
   (interactive nil tracing-minor-mode)
   (unless tracing-minor-mode
     (user-error "No active trace"))
-  (help-setup-xref (list #'tracing-list)
+  (help-setup-xref (list #'tracing-list-functions)
 		   (called-interactively-p 'interactive))
   (with-help-window (get-buffer-create "*Traced Functions*")
     (tracing--list-print)
@@ -147,7 +152,7 @@ If REMOVE is non-nil, remove FUNCS from tracking."
   :prefix 'tracing-keymap
   "j" #'trace-mode-display-results
   "q" #'untrace-all
-  "l" #'tracing-list)
+  "l" #'tracing-list-functions)
 
 (defvar-keymap trace-mode-repeat-display-map
   :repeat t
@@ -156,6 +161,13 @@ If REMOVE is non-nil, remove FUNCS from tracking."
 (defvar-keymap tracing-minor-mode-map
   :doc "Keymap active `tracing-minor-mode'."
   "<f2> D" #'tracing-keymap)
+
+(easy-menu-define tracing-minor-mode-menu tracing-minor-mode-map
+  "Tracing Menu"
+  '("Tracing"
+    ["Display results" trace-mode-display-results t]
+    ["Untrace all" untrace-all t]
+    ["List traced functions" tracing-list-functions t]))
 
 ;;;###autoload
 (define-minor-mode tracing-minor-mode
