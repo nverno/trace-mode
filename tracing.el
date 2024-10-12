@@ -43,14 +43,16 @@
   "Tracing minor mode prefix."
   :type 'string)
 
-(defface tracing-active-face
-  '((t (:inherit success :foreground "forestgreen" :weight bold)))
+(defface tracing-mode-line-active-face
+  '((t (:inherit success :foreground "hotpink" :weight bold)))
   "Face for active trace count."
   :group 'trace)
 
+(defcustom tracing-mode-line '(:eval (tracing--mode-line-text))
+  "Mode line for `tracing-minor-mode'."
+  :type 'sexp
+  :risky t)
 
-(defvar tracing--mode-line-string tracing-mode-line-prefix
-  "Tracing minor mode mode-line string.")
 
 (defvar tracing--current nil "Active trace names.")
 
@@ -63,32 +65,28 @@
     (setq inhibit-trace (not inhibit-trace))
     (force-mode-line-update t)))
 
-(defun tracing--mode-line ()
-  "Report current trace in the modeline."
-  (let* (face (suffix
-               (if inhibit-trace
-                   (progn (setq face 'error) "off")
-                 (let ((cnt (length tracing--current)))
-                   (when (> cnt 0)
-                     (setq face 'tracing-active-face))
-                   (number-to-string cnt)))))
-    (concat
-     tracing-mode-line-prefix ":"
-     (apply #'propertize suffix
-            'help-echo (apply
-                        #'format "%s\nmouse-1: %s tracing"
-                        (if inhibit-trace
-                            (list "Tracing is inhibited" "Enable")
-                          (list "Tracing is active" "Inhibit")))
-            'local-map (make-mode-line-mouse-map
-                        'mouse-1 #'tracing-mode-line-toggle-inhibit)
-            (and face (list 'face face))))))
-
-(defun tracing-update-mode-line ()
-  "Update active trace mode-line."
-  (setq tracing--mode-line-string (tracing--mode-line))
-  (when tracing-minor-mode
-    (force-mode-line-update t)))
+(defun tracing--mode-line-text ()
+  "Return text to display in mode-line."
+  (when (or (derived-mode-p 'trace-mode)
+            (mode-line-window-selected-p))
+    (let* (face (suffix
+                 (if inhibit-trace
+                     (progn (setq face 'error) "off")
+                   (let ((cnt (length tracing--current)))
+                     (when (> cnt 0)
+                       (setq face 'tracing-mode-line-active-face))
+                     (number-to-string cnt)))))
+      (concat
+       tracing-mode-line-prefix ":"
+       (apply #'propertize suffix
+              'help-echo (apply
+                          #'format "%s\nmouse-1: %s tracing"
+                          (if inhibit-trace
+                              (list "Tracing is inhibited" "Enable")
+                            (list "Tracing is active" "Inhibit")))
+              'local-map (make-mode-line-mouse-map
+                          'mouse-1 #'tracing-mode-line-toggle-inhibit)
+              (and face (list 'face face)))))))
 
 (defun tracing-add (funcs &optional _type remove)
   "Track FUNCS and maybe enable/disable `tracing-minor-mode'.
@@ -99,8 +97,7 @@ If REMOVE is non-nil, remove FUNCS from tracking."
           (seq-uniq (append funcs tracing--current))))
   (cond ((zerop (length tracing--current))
          (tracing-minor-mode -1))
-        (tracing-minor-mode
-         (tracing-update-mode-line))
+        (tracing-minor-mode (force-mode-line-update))
         (t (tracing-minor-mode 1))))
 
 ;; -------------------------------------------------------------------
@@ -147,9 +144,8 @@ If REMOVE is non-nil, remove FUNCS from tracking."
     (tracing--list-print)
     (setq-local revert-buffer-function #'tracing--list-print)))
 
-(declare-function tracing-keymap "")
-(defvar-keymap tracing-keymap
-  :prefix 'tracing-keymap
+(defvar-keymap tracing-prefix-map
+  :prefix 'tracing-prefix-map
   "j" #'trace-mode-display-results
   "q" #'untrace-all
   "l" #'tracing-list-functions)
@@ -160,7 +156,7 @@ If REMOVE is non-nil, remove FUNCS from tracking."
 
 (defvar-keymap tracing-minor-mode-map
   :doc "Keymap active `tracing-minor-mode'."
-  "<f2> D" #'tracing-keymap)
+  "<f2> D" #'tracing-prefix-map)
 
 (easy-menu-define tracing-minor-mode-menu tracing-minor-mode-map
   "Tracing Menu"
@@ -172,13 +168,12 @@ If REMOVE is non-nil, remove FUNCS from tracking."
 ;;;###autoload
 (define-minor-mode tracing-minor-mode
   "Minor mode active during tracing."
-  :lighter (:eval tracing--mode-line-string)
+  :lighter tracing-mode-line
   :keymap tracing-minor-mode-map
   :global t
   :interactive nil
   :group 'trace
-  (if tracing-minor-mode
-      (tracing-update-mode-line)
+  (unless tracing-minor-mode
     (setq tracing--current nil)))
 
 
