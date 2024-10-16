@@ -211,6 +211,10 @@ CREATE a new buffer when necessary if non-nil."
     (allow-no-window . t))
   "Display buffer action for trace buffer.")
 
+(defvar-keymap trace-mode-repeat-display-map
+  :repeat t
+  "j" #'trace-mode-display-results)
+
 ;;;###autoload
 (defun trace-mode-display-results (&optional and-go)
   "Show the trace results and maybe enable `trace-mode'.

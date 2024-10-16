@@ -58,6 +58,9 @@
 
 (defvar tracing--batch nil "Non-nil when doing batch action.")
 
+
+;;; Mode-Line
+
 (defun tracing-mode-line-toggle-inhibit (event)
   "Toggle `inhibit-trace' from the mode-line EVENT."
   (interactive "e")
@@ -88,13 +91,13 @@
                           'mouse-1 #'tracing-mode-line-toggle-inhibit)
               (and face (list 'face face)))))))
 
-(defun tracing-add (funcs &optional _type remove)
+(defun tracing-add (funcs &optional remove)
   "Track FUNCS and maybe enable/disable `tracing-minor-mode'.
 If REMOVE is non-nil, remove FUNCS from tracking."
-  (setq tracing--current
-        (if remove
-            (seq-remove (lambda (e) (memq e funcs)) tracing--current)
-          (seq-uniq (append funcs tracing--current))))
+  (setq tracing--current (if remove
+                             (seq-remove
+                              (lambda (e) (memq e funcs)) tracing--current)
+                           (seq-uniq (append funcs tracing--current))))
   (cond ((zerop (length tracing--current))
          (tracing-minor-mode -1))
         (tracing-minor-mode (force-mode-line-update))
@@ -105,7 +108,7 @@ If REMOVE is non-nil, remove FUNCS from tracking."
 
 (defun tracing-list-untrace ()
   "Untrace function in list."
-  (interactive)
+  (interactive nil tracing-list-mode)
   (when-let ((args (get-text-property (point) 'trace-args)))
     (apply #'untrace-function args)
     (revert-buffer nil t t)))
@@ -113,7 +116,8 @@ If REMOVE is non-nil, remove FUNCS from tracking."
 (defvar-keymap tracing-list-keymap
   :doc "Keymap on links in list of traced functions."
   :parent button-map
-  "u" #'tracing-list-untrace)
+  "u" #'tracing-list-untrace
+  "<mouse-2>" #'tracing-list-untrace)
 
 (defun tracing--list-print (&rest _args)
   (let ((inhibit-read-only t)
@@ -122,14 +126,14 @@ If REMOVE is non-nil, remove FUNCS from tracking."
     (insert (propertize (format "%s" "Traced functions") 'face 'outline-1))
     (insert "\n\n")
     (dolist (fn (sort tracing--current :key #'symbol-name))
-      (insert-text-button
-       (symbol-name fn)
-       'face 'button
-       'keymap tracing-list-keymap
-       'trace-args (list fn)
-       'action (lambda (_) (describe-function fn))
-       'follow-link t
-       'help-echo "mouse-1, RET: describe function")
+      (insert-text-button (symbol-name fn)
+                          'face 'button
+                          'keymap tracing-list-keymap
+                          'trace-args (list fn)
+                          'action (lambda (_) (describe-function fn))
+                          'follow-link t
+                          'help-echo "mouse-1, RET: describe function; \
+mouse-2: untrace function")
       (insert "\n"))
     (when pos (goto-char pos))))
 
@@ -149,10 +153,6 @@ If REMOVE is non-nil, remove FUNCS from tracking."
   "j" #'trace-mode-display-results
   "q" #'untrace-all
   "l" #'tracing-list-functions)
-
-(defvar-keymap trace-mode-repeat-display-map
-  :repeat t
-  "j" #'trace-mode-display-results)
 
 (defvar-keymap tracing-minor-mode-map
   :doc "Keymap active `tracing-minor-mode'."
@@ -185,7 +185,7 @@ If REMOVE is non-nil, remove FUNCS from tracking."
 
 (defun tracing-remove@untrace-function (func)
   "Advise `untrace-function' to remove FUNC tracking."
-  (or tracing--batch (tracing-add (list func) nil t)))
+  (or tracing--batch (tracing-add (list func) t)))
 
 (defun tracing-remove-all@untrace-all (orig)
   "Advice around `untrace-all', ORIG, to disable `tracing-minor-mode'."
