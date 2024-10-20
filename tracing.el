@@ -91,6 +91,37 @@
                           'mouse-1 #'tracing-mode-line-toggle-inhibit)
               (and face (list 'face face)))))))
 
+(declare-function trace-mode-display-results "trace-mode")
+(declare-function tracing-prefix-map "")
+
+(defvar-keymap tracing-prefix-map
+  :prefix 'tracing-prefix-map
+  "j" #'trace-mode-display-results
+  "q" #'untrace-all
+  "l" #'tracing-list-functions)
+
+(defvar-keymap tracing-minor-mode-map
+  :doc "Keymap active `tracing-minor-mode'."
+  "<f2> D" #'tracing-prefix-map)
+
+(easy-menu-define tracing-minor-mode-menu tracing-minor-mode-map
+  "Tracing Menu."
+  '("Tracing"
+    ["Display results" trace-mode-display-results t]
+    ["Untrace all" untrace-all t]
+    ["List traced functions" tracing-list-functions t]))
+
+;;;###autoload
+(define-minor-mode tracing-minor-mode
+  "Minor mode active during tracing."
+  :lighter tracing-mode-line
+  :keymap tracing-minor-mode-map
+  :global t
+  :interactive nil
+  :group 'trace
+  (unless tracing-minor-mode
+    (setq tracing--current nil)))
+
 (defun tracing-add (funcs &optional remove)
   "Track FUNCS and maybe enable/disable `tracing-minor-mode'.
 If REMOVE is non-nil, remove FUNCS from tracking."
@@ -102,6 +133,7 @@ If REMOVE is non-nil, remove FUNCS from tracking."
          (tracing-minor-mode -1))
         (tracing-minor-mode (force-mode-line-update))
         (t (tracing-minor-mode 1))))
+
 
 ;; -------------------------------------------------------------------
 ;;; Tracing List
@@ -120,6 +152,7 @@ If REMOVE is non-nil, remove FUNCS from tracking."
   "<mouse-2>" #'tracing-list-untrace)
 
 (defun tracing--list-print (&rest _args)
+  "Print list of traced functions."
   (let ((inhibit-read-only t)
         (pos (point)))
     (erase-buffer)
@@ -147,34 +180,6 @@ mouse-2: untrace function")
   (with-help-window (get-buffer-create "*Traced Functions*")
     (tracing--list-print)
     (setq-local revert-buffer-function #'tracing--list-print)))
-
-(defvar-keymap tracing-prefix-map
-  :prefix 'tracing-prefix-map
-  "j" #'trace-mode-display-results
-  "q" #'untrace-all
-  "l" #'tracing-list-functions)
-
-(defvar-keymap tracing-minor-mode-map
-  :doc "Keymap active `tracing-minor-mode'."
-  "<f2> D" #'tracing-prefix-map)
-
-(easy-menu-define tracing-minor-mode-menu tracing-minor-mode-map
-  "Tracing Menu"
-  '("Tracing"
-    ["Display results" trace-mode-display-results t]
-    ["Untrace all" untrace-all t]
-    ["List traced functions" tracing-list-functions t]))
-
-;;;###autoload
-(define-minor-mode tracing-minor-mode
-  "Minor mode active during tracing."
-  :lighter tracing-mode-line
-  :keymap tracing-minor-mode-map
-  :global t
-  :interactive nil
-  :group 'trace
-  (unless tracing-minor-mode
-    (setq tracing--current nil)))
 
 
 ;;; Advices
