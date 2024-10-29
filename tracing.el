@@ -31,6 +31,8 @@
 ;; functions.
 ;;; Code:
 
+(eval-when-compile
+  (require 'cl-lib))
 (require 'trace)
 
 
@@ -58,6 +60,17 @@
 
 (defvar tracing--batch nil "Non-nil when doing batch action.")
 
+(defsubst tracing--traced-funs ()
+  "Get all currently traced functions."
+  (cl-loop for sym being the symbols
+           when (trace-is-traced sym)
+           collect sym))
+
+(defsubst tracing--active-p ()
+  "Return non-nil if any function is traced."
+  (cl-loop for sym being the symbols
+           when (trace-is-traced sym)
+           return sym))
 
 ;;; Mode-Line
 
@@ -98,18 +111,18 @@
   :prefix 'tracing-prefix-map
   "j" #'trace-mode-display-results
   "q" #'untrace-all
-  "l" #'tracing-list-functions)
+  "l" #'tracing-list-traced)
 
 (defvar-keymap tracing-minor-mode-map
   :doc "Keymap active `tracing-minor-mode'."
-  "<f2> D" #'tracing-prefix-map)
+  "<f2> D" 'tracing-prefix-map)
 
 (easy-menu-define tracing-minor-mode-menu tracing-minor-mode-map
   "Tracing Menu."
   '("Tracing"
     ["Display results" trace-mode-display-results t]
     ["Untrace all" untrace-all t]
-    ["List traced functions" tracing-list-functions t]))
+    ["List traced functions" tracing-list-traced t]))
 
 ;;;###autoload
 (define-minor-mode tracing-minor-mode
@@ -119,9 +132,12 @@
   :global t
   :interactive nil
   :group 'trace
+  ;; (setq tracing--current (and tracing-minor-mode
+  ;;                            (tracing--traced-funs)))
   (unless tracing-minor-mode
     (setq tracing--current nil)))
 
+;;;###autoload
 (defun tracing-add (funcs &optional remove)
   "Track FUNCS and maybe enable/disable `tracing-minor-mode'.
 If REMOVE is non-nil, remove FUNCS from tracking."
@@ -141,7 +157,7 @@ If REMOVE is non-nil, remove FUNCS from tracking."
 (defun tracing-list-untrace ()
   "Untrace function in list."
   (interactive nil tracing-list-mode)
-  (when-let ((args (get-text-property (point) 'trace-args)))
+  (when-let* ((args (get-text-property (point) 'trace-args)))
     (apply #'untrace-function args)
     (revert-buffer nil t t)))
 
@@ -170,12 +186,12 @@ mouse-2: untrace function")
       (insert "\n"))
     (when pos (goto-char pos))))
 
-(defun tracing-list-functions ()
+(defun tracing-list-traced ()
   "List functions currently traced."
   (interactive nil tracing-minor-mode)
   (unless tracing-minor-mode
     (user-error "No active trace"))
-  (help-setup-xref (list #'tracing-list-functions)
+  (help-setup-xref (list #'tracing-list-traced)
 		   (called-interactively-p 'interactive))
   (with-help-window (get-buffer-create "*Traced Functions*")
     (tracing--list-print)
@@ -199,16 +215,25 @@ mouse-2: untrace function")
     (tracing-minor-mode -1)))
 
 ;;;###autoload
-(defun tracing-enable ()
-  "Enable `tracing-minor-mode' to track actively traced functions."
-  (interactive)
+(defun tracing-enable (&optional track-all)
+  "Enable `tracing-minor-mode' to track actively traced functions.
+When TRACK-ALL is non-nil, track any functions that were traced before
+`tracing-enable' was called, enabling `tracing-minor-mode' immediately for any
+currently traced functions. Interactively, TRACK-ALL is the default, but can be
+disabled with \\[universal-argument]."
+  (interactive (list (null current-prefix-arg)))
   (advice-add 'trace-function-internal
               :after #'tracing-add@trace-function-internal
               '((name . "tracing-add")))
   (advice-add 'untrace-function :after #'tracing-remove@untrace-function
               '((name . "tracing-remove")))
   (advice-add 'untrace-all :around #'tracing-remove-all@untrace-all
-              '((name . "tracing-remove-all"))))
+              '((name . "tracing-remove-all")))
+  (when (and track-all
+             (not tracing-minor-mode)
+             (tracing--active-p))
+    (setq tracing--current (tracing--traced-funs))
+    (tracing-minor-mode)))
 
 (defun tracing-disable ()
   "Disable `tracing-minor-mode'."

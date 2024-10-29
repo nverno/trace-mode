@@ -231,8 +231,8 @@ to the result buffer."
 (defun trace-mode-clear ()
   "Clear trace results buffer."
   (interactive)
-  (when-let ((buf (get-buffer trace-buffer)))
-    (and (buffer-live-p buf)
+  (let ((buf (get-buffer trace-buffer)))
+    (and buf (buffer-live-p buf)
          (with-current-buffer buf
            (let ((inhibit-read-only t))
              (erase-buffer))))))
@@ -246,10 +246,7 @@ to the result buffer."
       (let ((fn (intern (match-string 1))))
         (when (and fn (y-or-n-p (format "Untrace %S? " fn)))
           (message "untracing %S" fn)
-          (untrace-function fn)
-          ;; Support for `tracing-minor-mode'
-          (when (boundp 'tracing--current)
-            (setq tracing--current (delq fn tracing--current))))))))
+          (untrace-function fn))))))
 
 
 (defvar-keymap trace-mode-map
