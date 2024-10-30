@@ -46,15 +46,13 @@
   :type 'string)
 
 (defface tracing-mode-line-active-face
-  '((t (:inherit success :foreground "hotpink" :weight bold)))
+  '((t (:foreground "forest green" :weight bold)))
   "Face for active trace count."
   :group 'trace)
 
-(defcustom tracing-mode-line '(:eval (tracing--mode-line-text))
-  "Mode line for `tracing-minor-mode'."
-  :type 'sexp
-  :risky t)
-
+(defvar tracing-mode-line '(:eval (tracing--mode-line-text))
+  "Mode line for `tracing-minor-mode'.")
+(put 'tracing-mode-line 'risky-local-variable-p t)
 
 (defvar tracing--current nil "Active trace names.")
 
@@ -72,6 +70,7 @@
            when (trace-is-traced sym)
            return sym))
 
+
 ;;; Mode-Line
 
 (defun tracing-mode-line-toggle-inhibit (event)
@@ -85,24 +84,13 @@
   "Return text to display in mode-line."
   (when (or (derived-mode-p 'trace-mode)
             (mode-line-window-selected-p))
-    (let* (face (suffix
-                 (if inhibit-trace
-                     (progn (setq face 'error) "off")
-                   (let ((cnt (length tracing--current)))
-                     (when (> cnt 0)
-                       (setq face 'tracing-mode-line-active-face))
-                     (number-to-string cnt)))))
-      (concat
-       tracing-mode-line-prefix ":"
-       (apply #'propertize suffix
-              'help-echo (apply
-                          #'format "%s\nmouse-1: %s tracing"
-                          (if inhibit-trace
-                              (list "Tracing is inhibited" "Enable")
-                            (list "Tracing is active" "Inhibit")))
-              'local-map (make-mode-line-mouse-map
-                          'mouse-1 #'tracing-mode-line-toggle-inhibit)
-              (and face (list 'face face)))))))
+    (format "%s%s%s" tracing-mode-line-prefix
+            (if inhibit-trace "" ":")
+            (apply #'propertize
+                   (if inhibit-trace
+                       (list "-" 'face 'error)
+                     (list (number-to-string (length tracing--current))
+                           'face 'tracing-mode-line-active-face))))))
 
 (declare-function trace-mode-display-results "trace-mode")
 (declare-function tracing-prefix-map "")
