@@ -50,6 +50,7 @@
   "Face for active trace count."
   :group 'trace)
 
+;; XXX(11/03/24): move to misc-info
 (defvar tracing-mode-line '(:eval (tracing--mode-line-text))
   "Mode line for `tracing-minor-mode'.")
 (put 'tracing-mode-line 'risky-local-variable-p t)
@@ -73,13 +74,6 @@
 
 ;;; Mode-Line
 
-(defun tracing-mode-line-toggle-inhibit (event)
-  "Toggle `inhibit-trace' from the mode-line EVENT."
-  (interactive "e")
-  (with-selected-window (posn-window (event-start event))
-    (setq inhibit-trace (not inhibit-trace))
-    (force-mode-line-update t)))
-
 (defun tracing--mode-line-text ()
   "Return text to display in mode-line."
   (when (or (derived-mode-p 'trace-mode)
@@ -93,24 +87,27 @@
                            'face 'tracing-mode-line-active-face))))))
 
 (declare-function trace-mode-display-results "trace-mode")
+(declare-function trace-mode-toggle-inhibit "trace-mode")
 (declare-function tracing-prefix-map "")
 
 (defvar-keymap tracing-prefix-map
   :prefix 'tracing-prefix-map
+  "i" #'trace-mode-toggle-inhibit
   "j" #'trace-mode-display-results
   "q" #'untrace-all
   "l" #'tracing-list-traced)
 
 (defvar-keymap tracing-minor-mode-map
   :doc "Keymap active `tracing-minor-mode'."
-  "<f2> D" 'tracing-prefix-map)
+  "<f2> u" 'tracing-prefix-map)
 
 (easy-menu-define tracing-minor-mode-menu tracing-minor-mode-map
   "Tracing Menu."
   '("Tracing"
     ["Display results" trace-mode-display-results t]
-    ["Untrace all" untrace-all t]
-    ["List traced functions" tracing-list-traced t]))
+    ["List traced functions" tracing-list-traced t]
+    ["Toggle tracing inhibited" trace-mode-toggle-inhibit t]
+    ["Untrace all" untrace-all t]))
 
 ;;;###autoload
 (define-minor-mode tracing-minor-mode
@@ -218,10 +215,10 @@ disabled with \\[universal-argument]."
   (advice-add 'untrace-all :around #'tracing-remove-all@untrace-all
               '((name . "tracing-remove-all")))
   (when (and track-all
-             (not tracing-minor-mode)
              (tracing--active-p))
     (setq tracing--current (tracing--traced-funs))
-    (tracing-minor-mode)))
+    (or tracing-minor-mode
+        (tracing-minor-mode))))
 
 (defun tracing-disable ()
   "Disable `tracing-minor-mode'."

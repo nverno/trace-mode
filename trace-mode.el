@@ -40,7 +40,26 @@
 (require 'elisp-mode)                   ; `elisp--eval-last-sexp-print-value'
 
 
+(defvar trace-mode-line-process
+  `(":"
+    (:propertize
+     (:eval (if inhibit-trace (propertize "off" 'face 'warning) "run"))
+     help-echo (format "Tracing %s\nmouse-1: Toggle inhibit"
+                       (if inhibit-trace "inhibited" "enabled"))
+     mouse-face mode-line-highlight
+     local-map ,(make-mode-line-mouse-map
+                 'mouse-1 'trace-mode--toggle-inhibit)))
+  "Mode-line to indicate when tracing is inhibited.")
+
+(defun trace-mode--toggle-inhibit (event)
+  "Toggle `inhibit-trace' from the mode-line EVENT."
+  (interactive "e")
+  (with-selected-window (posn-window (event-start event))
+    (trace-mode-toggle-inhibit)))
+
+
 (defun trace-mode--prefix (level &optional function)
+  "Format trace prefix for FUNCTION at depth LEVEL."
   (format "%s%s%d %s"
           (mapconcat #'char-to-string (make-string (max 0 (1- level)) ?|) " ")
           (if (> level 1) " " "")
@@ -51,6 +70,9 @@
 ;; `cl-print-ellipsis' that exceed `print-level'/`print-length' -
 ;; `cl-print-expand-ellipsis' prints stuff hidden in ellipses
 (defun trace-mode--print (prefix value &optional ctx output)
+  "Print trace from PREFIX and VALUE.
+CTX is results to print from custom context.
+OUTPUT can specify an alternative output stream to the buffer."
   (let ((print-circle t)
         (print-escape-newlines t)
         ;; XXX(09/22/24): print settings for tracing
@@ -91,6 +113,7 @@ FUNCTION, LEVEL, VALUE, and CONTEXT are passed to `trace--exit-message'."
      (trace-mode--prefix level function) value (funcall context))))
 
 (defun trace-mode-toggle-formatting ()
+  "Toggle overriding functions from `trace'."
   (interactive)
   (if (advice-member-p 'trace-mode--entry-message 'trace--entry-message)
       (progn (advice-remove 'trace--entry-message 'trace-mode--entry-message)
@@ -167,6 +190,7 @@ ARG comes from `forward-sexp', which see."
   `((,(concat "^" (string-chop-newline trace-separator))
      . font-lock-comment-face)
     (,(rx bow (or "nil" "t") eow) . font-lock-constant-face)
+    (,(rx "..." (* " ...")) (0 'link))
     ("^\\(\\(?:| \\)+\\)?\\([0-9]+\\) \\(->\\) (\\([^ ]+\\)"
      (1 font-lock-comment-face nil t)
      (2 '(:inherit font-lock-number-face :weight bold))
@@ -244,23 +268,46 @@ to the result buffer."
     (beginning-of-line)
     (when (looking-at "^\\(?:| \\)*[0-9]+ \\(?:->\\|<-\\) (?\\([^ ]+\\)")
       (let ((fn (intern (match-string 1))))
-        (when (and fn (y-or-n-p (format "Untrace %S? " fn)))
+        (when (and fn (y-or-n-p (format "Untrace %s? " fn)))
           (message "untracing %S" fn)
           (untrace-function fn))))))
 
+(declare-function elisp-last-sexp-toggle-display "elisp-mode")
+(defun trace-mode-toggle-abbreviated-display ()
+  "Toggle abbreviated display of values on current line."
+  (interactive)
+  (save-excursion
+    (beginning-of-line)
+    (if-let* ((pos (next-single-char-property-change
+                      (point) 'printed-value nil (line-end-position))))
+        (progn (goto-char pos)
+               (elisp-last-sexp-toggle-display))
+      (message "No abbreviated results on line"))))
 
 (defvar-keymap trace-mode-map
   :doc "Keymap in `trace-mode'."
   :parent special-mode-map
-  "j" #'next-line
-  "k" #'previous-line
-  "h" #'backward-char
-  "l" #'forward-char
-  "u" #'trace-mode-untrace
-  "f" #'forward-sexp
-  "b" #'backward-sexp
-  "n" #'forward-paragraph
-  "p" #'backward-paragraph)
+  "TAB"       #'forward-paragraph
+  "<backtab>" #'backward-paragraph
+  "e"         #'trace-mode-toggle-abbreviated-display
+  "i"         #'trace-mode-toggle-inhibit
+  "j"         #'next-line
+  "k"         #'previous-line
+  "h"         #'backward-char
+  "l"         #'forward-char
+  "u"         #'trace-mode-untrace
+  "f"         #'forward-sexp
+  "b"         #'backward-sexp
+  "n"         #'forward-paragraph
+  "p"         #'backward-paragraph)
+
+;;;###autoload
+(defun trace-mode-toggle-inhibit (&optional on)
+  "Toggle `inhibit-trace' and update the mode-line."
+  (interactive "P")
+  (setq inhibit-trace (or on (not inhibit-trace)))
+  (force-mode-line-update t)
+  (message "Tracing %s" (if inhibit-trace "inhibited" "enabled")))
 
 ;;;###autoload
 (define-derived-mode trace-mode special-mode "Trace"
@@ -269,11 +316,14 @@ to the result buffer."
 \\{trace-mode-map}"
   :abbrev-table nil
   :syntax-table emacs-lisp-mode-syntax-table
+  (setq mode-line-process trace-mode-line-process)
   (setq buffer-read-only nil)
+  (setq truncate-lines t)
   (let ((sep (regexp-quote (string-chop-newline trace-separator))))
     ;; Variables to set for hideshow to work
     (setq-local paragraph-separate sep)
     (setq-local comment-start sep))
+
   (setq-local comment-end "")
   (setq-local hs-hide-comments-when-hiding-all nil)
   (setq-local forward-sexp-function #'trace-mode--forward-sexp)
