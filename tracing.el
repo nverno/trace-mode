@@ -46,14 +46,22 @@
   :type 'string)
 
 (defface tracing-mode-line-active-face
-  '((t (:foreground "forest green" :weight bold)))
+  '((t :foreground "forest green" :weight bold))
   "Face for active trace count."
   :group 'trace)
 
-;; XXX(11/03/24): move to misc-info
-(defvar tracing-mode-line '(:eval (tracing--mode-line-text))
-  "Mode line for `tracing-minor-mode'.")
-(put 'tracing-mode-line 'risky-local-variable-p t)
+(defvar-local tracing-mode-line-status
+    `(tracing-minor-mode
+      (:eval (when (or (derived-mode-p 'trace-mode)
+                       (mode-line-window-selected-p))
+               (propertize
+                (format " %s/%s" tracing-mode-line-prefix
+                        (if inhibit-trace "-"
+                          (number-to-string (length tracing--current))))
+                'face (if inhibit-trace 'error
+                        'tracing-mode-line-active-face)))))
+  "Mode line status for `tracing-minor-mode'.")
+(put 'tracing-mode-line-status 'risky-local-variable-p t)
 
 (defvar tracing--current nil "Active trace names.")
 
@@ -70,21 +78,6 @@
   (cl-loop for sym being the symbols
            when (trace-is-traced sym)
            return sym))
-
-
-;;; Mode-Line
-
-(defun tracing--mode-line-text ()
-  "Return text to display in mode-line."
-  (when (or (derived-mode-p 'trace-mode)
-            (mode-line-window-selected-p))
-    (format "%s%s%s" tracing-mode-line-prefix
-            (if inhibit-trace "" ":")
-            (apply #'propertize
-                   (if inhibit-trace
-                       (list "-" 'face 'error)
-                     (list (number-to-string (length tracing--current))
-                           'face 'tracing-mode-line-active-face))))))
 
 (declare-function trace-mode-display-results "trace-mode")
 (declare-function trace-mode-toggle-inhibit "trace-mode")
@@ -112,7 +105,7 @@
 ;;;###autoload
 (define-minor-mode tracing-minor-mode
   "Minor mode active during tracing."
-  :lighter tracing-mode-line
+  :lighter (:eval tracing-mode-line-status)
   :keymap tracing-minor-mode-map
   :global t
   :interactive nil
