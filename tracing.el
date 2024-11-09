@@ -41,23 +41,28 @@
   :group 'trace
   :prefix "tracing-")
 
+(defface tracing-mode-line-active-face
+  '((t :foreground "forest green" :weight bold))
+  "Face for active trace count."
+  :group 'trace)
+
 (defcustom tracing-mode-line-prefix " Tr"
   "Tracing minor mode prefix."
   :type 'string)
 
-(defface tracing-mode-line-active-face
-  '((t (:foreground "forest green" :weight bold)))
-  "Face for active trace count."
-  :group 'trace)
-
-;; XXX(11/03/24): move to misc-info
-(defvar tracing-mode-line '(:eval (tracing--mode-line-text))
-  "Mode line for `tracing-minor-mode'.")
-(put 'tracing-mode-line 'risky-local-variable-p t)
-
 (defvar tracing--current nil "Active trace names.")
 
 (defvar tracing--batch nil "Non-nil when doing batch action.")
+
+(defcustom tracing-mode-line
+  '(:eval
+    (propertize
+     (format "%s/%s" tracing-mode-line-prefix
+             (if inhibit-trace "-" (length tracing--current)))
+     'face (if inhibit-trace 'error 'tracing-mode-line-active-face)))
+  "Mode line status for `tracing-minor-mode'."
+  :type 'sexp
+  :risky t)
 
 (defsubst tracing--traced-funs ()
   "Get all currently traced functions."
@@ -70,21 +75,6 @@
   (cl-loop for sym being the symbols
            when (trace-is-traced sym)
            return sym))
-
-
-;;; Mode-Line
-
-(defun tracing--mode-line-text ()
-  "Return text to display in mode-line."
-  (when (or (derived-mode-p 'trace-mode)
-            (mode-line-window-selected-p))
-    (format "%s%s%s" tracing-mode-line-prefix
-            (if inhibit-trace "" ":")
-            (apply #'propertize
-                   (if inhibit-trace
-                       (list "-" 'face 'error)
-                     (list (number-to-string (length tracing--current))
-                           'face 'tracing-mode-line-active-face))))))
 
 (declare-function trace-mode-display-results "trace-mode")
 (declare-function trace-mode-toggle-inhibit "trace-mode")
@@ -102,7 +92,7 @@
   "<f2> u" 'tracing-prefix-map)
 
 (easy-menu-define tracing-minor-mode-menu tracing-minor-mode-map
-  "Tracing Menu."
+  "Tracing Menu"
   '("Tracing"
     ["Display results" trace-mode-display-results t]
     ["List traced functions" tracing-list-traced t]
@@ -217,8 +207,7 @@ disabled with \\[universal-argument]."
   (when (and track-all
              (tracing--active-p))
     (setq tracing--current (tracing--traced-funs))
-    (or tracing-minor-mode
-        (tracing-minor-mode))))
+    (tracing-minor-mode +1)))
 
 (defun tracing-disable ()
   "Disable `tracing-minor-mode'."
