@@ -50,27 +50,6 @@
   "Tracing minor mode prefix."
   :type 'string)
 
-<<<<<<< HEAD
-(defface tracing-mode-line-active-face
-  '((t :foreground "forest green" :weight bold))
-  "Face for active trace count."
-  :group 'trace)
-
-(defvar-local tracing-mode-line-status
-    `(tracing-minor-mode
-      (:eval (when (or (derived-mode-p 'trace-mode)
-                       (mode-line-window-selected-p))
-               (propertize
-                (format " %s/%s" tracing-mode-line-prefix
-                        (if inhibit-trace "-"
-                          (number-to-string (length tracing--current))))
-                'face (if inhibit-trace 'error
-                        'tracing-mode-line-active-face)))))
-  "Mode line status for `tracing-minor-mode'.")
-(put 'tracing-mode-line-status 'risky-local-variable-p t)
-
-=======
->>>>>>> 7db201db40fb575ee3aa62434c72ddd374095b24
 (defvar tracing--current nil "Active trace names.")
 
 (defvar tracing--batch nil "Non-nil when doing batch action.")
@@ -123,7 +102,7 @@
 ;;;###autoload
 (define-minor-mode tracing-minor-mode
   "Minor mode active during tracing."
-  :lighter (:eval tracing-mode-line-status)
+  :lighter (:eval tracing-mode-line)
   :keymap tracing-minor-mode-map
   :global t
   :interactive nil
