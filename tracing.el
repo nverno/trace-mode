@@ -102,7 +102,7 @@
 ;;;###autoload
 (define-minor-mode tracing-minor-mode
   "Minor mode active during tracing."
-  :lighter (:eval tracing-mode-line-status)
+  :lighter (:eval tracing-mode-line)
   :keymap tracing-minor-mode-map
   :global t
   :interactive nil
